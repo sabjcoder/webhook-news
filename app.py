@@ -10,10 +10,14 @@ from urllib.error import HTTPError
 
 import json
 import os
+import urllib2
+import requests
 
 from flask import Flask
 from flask import request
 from flask import make_response
+
+from bs4 import BeautifulSoup
 
 # Flask app should start in global layout
 app = Flask(__name__)
@@ -38,55 +42,35 @@ def webhook():
 def processRequest(req):
     if req.get("result").get("action") != "news":
         return {}
-    baseurl = "https://query.yahooapis.com/v1/public/yql?"
+    '''baseurl = "https://query.yahooapis.com/v1/public/yql?"
     yql_query = makeYqlQuery(req)
     if yql_query is None:
         return {}
     yql_url = baseurl + urlencode({'q': yql_query}) + "&format=json"
     result = urlopen(yql_url).read()
-    data = json.loads(result)
-    res = makeWebhookResult(data)
+    data = json.loads(result)'''
+    
+    r = requests.get("http://www.channelnewsasia.com/rssfeeds/8395986")
+
+    data = r.text
+    soup = BeautifulSoup(data,"xml")
+    
+    res = makeWebhookResult(soup)
     return res
 
 
-def makeYqlQuery(req):
-    result = req.get("result")
-    parameters = result.get("parameters")
-    city = parameters.get("geo-city")
-    if city is None:
-        return None
 
-    return "select * from weather.forecast where woeid in (select woeid from geo.places(1) where text='" + city + "')"
-
-
-def makeWebhookResult(data):
-    query = data.get('query')
-    if query is None:
-        return {}
-
-    result = query.get('results')
-    if result is None:
-        return {}
-
-    channel = result.get('channel')
-    if channel is None:
-        return {}
-
-    item = channel.get('item')
-    location = channel.get('location')
-    units = channel.get('units')
-    if (location is None) or (item is None) or (units is None):
-        return {}
-
-    condition = item.get('condition')
-    if condition is None:
-        return {}
+def makeWebhookResult(soup):
+    speech = ""
+    for item in soup.find_all('item')[:3]:
+        speech=speech+item.find('title').text+"\n"
 
     # print(json.dumps(item, indent=4))
 
-    '''speech = "Today in " + location.get('city') + ": " + condition.get('text') + \
-             ", the temperature is " + condition.get('temp') + " " + units.get('temperature')'''
-    speech = "Here are some latest news today:"
+    #speech = "Today in " + location.get('city') + ": " + condition.get('text') + \
+             ", the temperature is " + condition.get('temp') + " " + units.get('temperature')
+    
+    # speech = "Here are some latest news today:"
 
     print("Response:")
     print(speech)
@@ -96,7 +80,7 @@ def makeWebhookResult(data):
         "displayText": speech,
         # "data": data,
         # "contextOut": [],
-        "source": "apiai-weather-webhook-sample"
+        "source": "apiai-news-webhook-sample"
     }
 
 
